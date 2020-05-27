@@ -30,7 +30,34 @@ module.exports = {
       dataSources.userAPI.findOrCreateUser(),
   },
   Mutation: {
-    bookTrips: async (_, { launchIds }, { dataSources }) => {
+    bookTrips: async (_, { launchIds, cardToken }, { dataSources }) => {
+      let paymentStatus;
+
+      if (cardToken){
+        const stripe = require('stripe')('sk_test_0CbhH3PopwYWxgduO0MzIe4U00KX9hVSEO');
+
+        try {
+          const intent = await stripe.paymentIntents.create({
+            amount: 1000,
+            currency: 'usd',
+            payment_method: cardToken,
+      
+            // A PaymentIntent can be confirmed some time after creation,
+            // but here we want to confirm (collect payment) immediately.
+            confirm: true,
+      
+            // If the payment requires any follow-up actions from the
+            // customer, like two-factor authentication, Stripe will error
+            // and you will need to prompt them for a new payment method.
+            error_on_requires_action: true
+          });
+
+          paymentStatus=intent.status;
+        } catch (e) {
+          throw new Error(e)
+        }
+      }
+      
       const results = await dataSources.userAPI.bookTrips({ launchIds });
       const launches = await dataSources.launchAPI.getLaunchesByIds({
         launchIds,
@@ -45,6 +72,7 @@ module.exports = {
                 id => !results.includes(id),
               )}`,
         launches,
+        paymentStatus,
       };
     },
     cancelTrip: async (_, { launchId }, { dataSources }) => {
